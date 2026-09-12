@@ -40,14 +40,64 @@ The repo ships with `.github/workflows/build.yml` (GitHub Actions):
 
 Android 13 note: sideloaded accessibility apps are a "restricted setting" — first tap the 3-dot menu in App info → *Allow restricted settings*, then enable the service in Accessibility settings. Disable battery optimization for the app so Android does not kill the server.
 
-## Example (Termux)
+## Usage in Termux
+
+### 1. One-time setup (on the phone)
+
+1. Install `app-debug.apk` (from GitHub Actions artifact or local build) — allow "install unknown apps".
+2. Open **Access Agent** → *Open Accessibility Settings* → enable the service.
+   Android 13+: sideloaded apps must first do **App info → ⋮ menu → Allow restricted settings**.
+3. A toast "Access Agent listening on 127.0.0.1:8765" means the server is up.
+4. Recommended: Settings → Apps → Access Agent → Battery → **Unrestricted** (so Android does not kill the server).
+
+### 2. Termux setup
+
+Use the F-Droid build of Termux (Play Store build is outdated), then:
+
+```sh
+pkg update -y && pkg install -y jq netcat-openbsd
+```
+
+Install the bundled CLI helper as a global command:
+
+```sh
+cd access-agent-v4.1
+cp termux/agent $PREFIX/bin/agent && chmod +x $PREFIX/bin/agent
+```
+
+### 3. Everyday commands
+
+```sh
+agent ping                     # test connection -> {"ok":true,"service":"access-agent-v4.1",...}
+agent state                    # foreground app + last event
+agent goal "buka Settings"     # deterministic planner opens the app
+agent click "Battery"          # click a node by visible text
+agent type "Search" "wifi"     # type into a field matched by text
+agent tap 540 1200             # coordinate tap
+agent swipe 540 1800 540 600   # scroll gesture
+agent screenshot ~/ss.jpg      # screenshot decoded from jpg+gzip base64
+agent back / agent home        # system navigation
+agent batch '[{"action":"home"},{"action":"wait","ms":500}]'
+agent raw '{"action":"observe_tree"}'   # any raw protocol command
+```
+
+Raw protocol without the helper (every connection = exactly one JSON line):
 
 ```sh
 printf '%s\n' '{"action":"ping"}' | nc 127.0.0.1 8765
 printf '%s\n' '{"action":"goal","goal":"buka Settings","max_steps":8}' | nc 127.0.0.1 8765
 ```
 
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `connection refused` | service not enabled, killed by battery optimization, or phone rebooted without re-enabling |
+| `{"ok":false,"error":"target_not_found"}` | text not on screen — try `agent tree` to inspect, or scroll first |
+| gestures do nothing | screen must be ON and unlocked for `dispatchGesture` |
+| `goal` returns `inconclusive` | planner clicked something but could not verify (package name does not match the goal token) — check `trace` in the response |
+| screenshot empty | screenshot needs Android 11+ (API 30) |
+
 ## Security warning
 
 The endpoint has **no authentication**: any app on the device holding the INTERNET permission can connect to 127.0.0.1:8765, drive the UI, and read screenshots. Loopback-only is not a security boundary between apps. For anything beyond a personal lab, add a shared token check in `handle()` (compare against a header/first field) before executing. The service does not grant root or bypass Android security boundaries.
-# access-agent-v4.1-fixed
