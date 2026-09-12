@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Access Agent</string>
+    <string name="accessibility_service_description">AI UI control and observation service. Exposes a local-only JSON endpoint on 127.0.0.1:8765 for Termux automation.</string>
+</resources>

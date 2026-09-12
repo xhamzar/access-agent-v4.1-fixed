@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.example.accessagent'
+    // v4.1: compileSdk 34 matches AGP 8.5.2 exactly (compileSdk 35 needs AGP 8.6+).
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.example.accessagent'
+        minSdk 26
+        targetSdk 33
+        versionCode 5
+        versionName '4.1'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
