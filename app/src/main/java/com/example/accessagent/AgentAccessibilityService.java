@@ -18,6 +18,7 @@ import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONException;
 
 import java.io.*;
 import java.net.*;
@@ -269,7 +270,12 @@ public class AgentAccessibilityService extends AccessibilityService {
     private boolean verify(JSONObject r) {
         JSONObject v = r.optJSONObject("verify_target");
         if (v == null) return false;
-        return resolve(root(), new JSONObject().put("target", v)) != null;
+        try {
+            return resolve(root(), new JSONObject().put("target", v)) != null;
+        } catch (JSONException e) {
+            Log.e(TAG, "verify: JSONException", e);
+            return false;
+        }
     }
 
     private JSONObject waitFor(JSONObject r) throws Exception {
@@ -330,12 +336,12 @@ public class AgentAccessibilityService extends AccessibilityService {
         if (visible && !n.isVisibleToUser()) return 0;
         double s=0;
         if (!wantId.isEmpty()) { if (id.equals(wantId)) s+=100; else return 0; }
-        if (!wantText.isEmpty()) { if (text.equals(wantText)) s+=80; else if (text.equalsIgnoreCase(wantText)) s+=65; else if (text.toLowerCase(Locale.US).contains(wantText.toLowerCase(Locale.US))) s+=35; else return 0; }
+        if (!wantText.isEmpty()) { if (text.equals(wantText)) s+=80; else if (text.equalsIgnoreCase(wantText)) s+=65; else if (text.toLowerCase(Locale.US).contains(wantText.toLowerCase(Locale.US))) s+=50; else return 0; }
         if (!wantDesc.isEmpty()) { if (desc.equals(wantDesc)) s+=70; else if (desc.equalsIgnoreCase(wantDesc)) s+=55; else return 0; }
         if (!wantCls.isEmpty()) { if (cls.equals(wantCls)) s+=25; else return 0; }
         if (!contains.isEmpty()) { if (text.toLowerCase(Locale.US).contains(contains.toLowerCase(Locale.US))) s+=45; else return 0; }
         if (!q.isEmpty() && wantText.isEmpty() && wantDesc.isEmpty() && wantId.isEmpty()) {
-            String z=q.toLowerCase(Locale.US); if(text.equalsIgnoreCase(q)||desc.equalsIgnoreCase(q))s+=75; else if(text.toLowerCase(Locale.US).contains(z)||desc.toLowerCase(Locale.US).contains(z))s+=40; else return 0;
+            String z=q.toLowerCase(Locale.US); if(text.equalsIgnoreCase(q)||desc.equalsIgnoreCase(q))s+=75; else if(text.toLowerCase(Locale.US).contains(z)||desc.toLowerCase(Locale.US).contains(z)) s+=40; else return 0;
         }
         if (t.optBoolean("clickable", false) && n.isClickable()) s+=10;
         if (t.optBoolean("editable", false) && n.isEditable()) s+=10;
@@ -359,8 +365,8 @@ public class AgentAccessibilityService extends AccessibilityService {
         o.put("hasRoot",n!=null).put("windows",windows()).put("eventSeq",eventSeq); if(n!=null)o.put("root",node(n)); return o;
     }
     private JSONObject rootTree() throws Exception { AccessibilityNodeInfo n=root(); return n==null?new JSONObject().put("hasRoot",false):nodeTree(n); }
-    private JSONObject nodeTree(AccessibilityNodeInfo n) throws Exception { JSONObject o=node(n); JSONArray c=new JSONArray(); for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo x=n.getChild(i);if(x!=null)c.put(nodeTree(x));} return o.put("children",c); }
-    private JSONArray windows() throws Exception { JSONArray a=new JSONArray(); for(AccessibilityWindowInfo w:getWindows()){JSONObject o=new JSONObject();Rect b=new Rect();w.getBoundsInScreen(b);o.put("id",w.getId()).put("type",w.getType()).put("active",w.isActive()).put("focused",w.isFocused()).put("bounds",rect(b));a.put(o);}return a; }
+    private JSONObject nodeTree(AccessibilityNodeInfo n) throws Exception { JSONObject o=node(n); JSONArray c=new JSONArray(); for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo x=n.getChild(i); if(x!=null)c.put(nodeTree(x));} o.put("children",c); return o; }
+    private JSONArray windows() throws Exception { JSONArray a=new JSONArray(); for(AccessibilityWindowInfo w:getWindows()){JSONObject o=new JSONObject();Rect b=new Rect();w.getBoundsInScreen(b);o.put("title",safe(w.getTitle())).put("type",w.getType()).put("bounds",rect(b));a.put(o);} return a; }
 
     private JSONObject node(AccessibilityNodeInfo n) throws Exception {
         JSONObject o=new JSONObject(); Rect b=new Rect(); n.getBoundsInScreen(b);
@@ -375,15 +381,15 @@ public class AgentAccessibilityService extends AccessibilityService {
         o.put("clickable",n.isClickable()).put("editable",n.isEditable()).put("enabled",n.isEnabled()).put("focused",n.isFocused());
         o.put("selected",n.isSelected()).put("checked",n.isChecked()).put("checkable",n.isCheckable()).put("scrollable",n.isScrollable());
         o.put("visible",n.isVisibleToUser()).put("password",n.isPassword()).put("bounds",rect(b)).put("childCount",n.getChildCount());
-        JSONArray acts=new JSONArray();for(AccessibilityNodeInfo.AccessibilityAction x:n.getActionList())acts.put(new JSONObject().put("id",x.getId()).put("label",safe(x.getLabel())));o.put("actions",acts);return o;
+        JSONArray acts=new JSONArray();for(AccessibilityNodeInfo.AccessibilityAction x:n.getActionList())acts.put(new JSONObject().put("id",x.getId()).put("label",safe(x.getLabel())));o.put("actions",acts); return o;
     }
     private JSONArray rect(Rect b)throws Exception{return new JSONArray().put(b.left).put(b.top).put(b.right).put(b.bottom);}
 
     private boolean tap(JSONObject r){return stroke(r.optDouble("x",0),r.optDouble("y",0),80);}
     private boolean longPress(JSONObject r){return stroke(r.optDouble("x",0),r.optDouble("y",0),700);}
-    private boolean doubleTap(JSONObject r){float x=(float)r.optDouble("x",0),y=(float)r.optDouble("y",0);Path p=new Path();p.moveTo(x,y);GestureDescription.Builder b=new GestureDescription.Builder();b.addStroke(new GestureDescription.StrokeDescription(p,0,70));b.addStroke(new GestureDescription.StrokeDescription(p,160,70));return dispatchGesture(b.build(),null,null);}
+    private boolean doubleTap(JSONObject r){float x=(float)r.optDouble("x",0),y=(float)r.optDouble("y",0);Path p=new Path();p.moveTo(x,y);GestureDescription.Builder b=new GestureDescription.Builder();b.addStroke(new GestureDescription.StrokeDescription(p,0,100));return dispatchGesture(b.build(),null,null);}
     private boolean stroke(double x,double y,long duration){Path p=new Path();p.moveTo((float)x,(float)y);GestureDescription.Builder b=new GestureDescription.Builder();b.addStroke(new GestureDescription.StrokeDescription(p,0,duration));return dispatchGesture(b.build(),null,null);}
-    private boolean swipe(JSONObject r){Path p=new Path();p.moveTo((float)r.optDouble("x1",0),(float)r.optDouble("y1",0));p.lineTo((float)r.optDouble("x2",0),(float)r.optDouble("y2",0));GestureDescription.Builder b=new GestureDescription.Builder();b.addStroke(new GestureDescription.StrokeDescription(p,0,Math.max(1,Math.min(10000,r.optLong("duration",400)))));return dispatchGesture(b.build(),null,null);}
+    private boolean swipe(JSONObject r){Path p=new Path();p.moveTo((float)r.optDouble("x1",0),(float)r.optDouble("y1",0));p.lineTo((float)r.optDouble("x2",0),(float)r.optDouble("y2",0));GestureDescription.Builder b=new GestureDescription.Builder();b.addStroke(new GestureDescription.StrokeDescription(p,0,clamp(r.optLong("duration_ms",300),50,5000)));return dispatchGesture(b.build(),null,null);}
 
     private JSONObject screenshot() throws Exception {
         JSONObject out=new JSONObject(); if(android.os.Build.VERSION.SDK_INT<30)return out.put("ok",false).put("error","screenshot_api_requires_30");
